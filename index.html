@@ -1,0 +1,419 @@
+INDEX.HTML FILE
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Learning Platform Prototype</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Custom configuration for Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#4f46e5',
+                        'primary-dark': '#4338ca',
+                        'secondary': '#10b981',
+                        'accent': '#f59e0b',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <!-- Custom styles for the app -->
+    <style>
+        /* Apply Inter font globally */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+        /* Custom scrollbar for a cleaner look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+    </style>
+</head>
+<body class="min-h-screen antialiased flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <h1 id="header-title" class="text-3xl font-bold text-primary cursor-pointer transition hover:text-primary-dark" onclick="renderCourseList()">
+                🚀 SkillUp Academy
+            </h1>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow">
+        <!-- View Container (Courses List or Course Details) -->
+        <div id="view-container">
+            <!-- Content will be injected here by JavaScript -->
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-100 mt-8 py-4">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-500 text-sm">
+            Prototype by Gemini | Simple E-Learning Platform
+        </div>
+    </footer>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // --- Data Model and Persistence ---
+
+        const APP_ID = 'eLearningPrototype';
+        const PROGRESS_STORAGE_KEY = `${APP_ID}_progress`;
+
+        // Mock Course Data
+        const initialCourses = [
+            {
+                id: 1,
+                title: "Introduction to Web Development",
+                description: "Learn the fundamentals of HTML, CSS, and JavaScript to build your first modern and responsive websites from scratch.",
+                duration: "4 weeks",
+                icon: "💻",
+                lessons: [
+                    { id: 101, title: "HTML Basics & Structure" },
+                    { id: 102, title: "CSS Styling & Layouts" },
+                    { id: 103, title: "Introduction to JavaScript (Variables & Loops)" },
+                    { id: 104, title: "DOM Manipulation & Events" },
+                    { id: 105, title: "Responsive Design Principles (Flexbox & Grid)" },
+                ]
+            },
+            {
+                id: 2,
+                title: "Python Data Science Fundamentals",
+                description: "Master Python essentials and key libraries like Pandas and NumPy for data analysis and visualization.",
+                duration: "6 weeks",
+                icon: "📊",
+                lessons: [
+                    { id: 201, title: "Setting up the Python Environment" },
+                    { id: 202, title: "Python Basics (Data Types & Functions)" },
+                    { id: 203, title: "Introduction to NumPy" },
+                    { id: 204, title: "Data Handling with Pandas" },
+                ]
+            },
+            {
+                id: 3,
+                title: "Creative Writing Workshop",
+                description: "Unlock your imagination and develop compelling characters, plots, and narrative styles across various genres.",
+                duration: "3 weeks",
+                icon: "✍️",
+                lessons: [
+                    { id: 301, title: "Story Structure and Plotting" },
+                    { id: 302, title: "Developing Believable Characters" },
+                    { id: 303, title: "Mastering Dialogue and Voice" },
+                ]
+            }
+        ];
+
+        let coursesData = initialCourses;
+        let userProgress = {}; // Stores lesson completion and overall course status
+
+        /**
+         * Loads progress from localStorage or initializes it.
+         */
+        function loadProgress() {
+            try {
+                const storedProgress = localStorage.getItem(PROGRESS_STORAGE_KEY);
+                if (storedProgress) {
+                    userProgress = JSON.parse(storedProgress);
+                } else {
+                    initializeProgress();
+                }
+            } catch (e) {
+                console.error("Error loading progress from localStorage:", e);
+                initializeProgress();
+            }
+            updateAllCourseProgress();
+        }
+
+        /**
+         * Initializes the userProgress object based on course data.
+         */
+        function initializeProgress() {
+            userProgress = {};
+            coursesData.forEach(course => {
+                const lessonStatus = course.lessons.reduce((acc, lesson) => {
+                    acc[lesson.id] = false; // All lessons start incomplete
+                    return acc;
+                }, {});
+
+                userProgress[course.id] = {
+                    completed: false, // Course starts incomplete
+                    lessons: lessonStatus
+                };
+            });
+            saveProgress();
+        }
+
+        /**
+         * Saves the current userProgress state to localStorage.
+         */
+        function saveProgress() {
+            try {
+                localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(userProgress));
+            } catch (e) {
+                console.error("Error saving progress to localStorage:", e);
+            }
+        }
+
+        /**
+         * Calculates the progress percentage for a single course.
+         * @param {number} courseId - The ID of the course.
+         * @returns {number} The completion percentage (0-100).
+         */
+        function calculateCourseProgress(courseId) {
+            const course = coursesData.find(c => c.id === courseId);
+            if (!course || !userProgress[courseId]) return 0;
+
+            const totalLessons = course.lessons.length;
+            if (totalLessons === 0) return 100;
+
+            const progress = userProgress[courseId].lessons;
+            const completedLessons = Object.values(progress).filter(isCompleted => isCompleted).length;
+
+            return Math.floor((completedLessons / totalLessons) * 100);
+        }
+
+        /**
+         * Updates the overall course completion status for all courses.
+         */
+        function updateAllCourseProgress() {
+            coursesData.forEach(course => {
+                const courseId = course.id;
+                const progressPercent = calculateCourseProgress(courseId);
+
+                // If progress reaches 100% and it wasn't manually marked complete before, mark it complete.
+                if (progressPercent === 100 && userProgress[courseId].completed === false) {
+                    userProgress[courseId].completed = true;
+                }
+                // If lessons are unmarked, but the course was previously completed, unmark the course.
+                if (progressPercent < 100 && userProgress[courseId].completed === true) {
+                    userProgress[courseId].completed = false;
+                }
+            });
+            saveProgress();
+        }
+
+
+        // --- View Rendering ---
+
+        const viewContainer = document.getElementById('view-container');
+
+        /**
+         * Renders the main course list view.
+         */
+        function renderCourseList() {
+            updateAllCourseProgress(); // Recalculate state before rendering
+
+            const coursesHtml = coursesData.map(course => {
+                const progress = calculateCourseProgress(course.id);
+                const isCompleted = userProgress[course.id]?.completed || false;
+                const progressColor = isCompleted ? 'bg-secondary' : 'bg-primary';
+
+                return `
+                    <div class="bg-white border border-gray-200 p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300 ease-in-out flex flex-col justify-between">
+                        <div>
+                            <span class="text-4xl block mb-4">${course.icon}</span>
+                            <h3 class="text-xl font-bold text-gray-900 mb-2">${course.title}</h3>
+                            <p class="text-gray-600 text-sm mb-4">${course.description}</p>
+                            <div class="flex items-center text-sm text-gray-500 mb-4">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span>${course.duration}</span>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="mt-4">
+                            <div class="flex justify-between items-center text-xs font-semibold mb-1">
+                                <span class="text-gray-700">Progress</span>
+                                <span class="${isCompleted ? 'text-secondary' : 'text-primary'}">${progress}% Complete</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div class="${progressColor} h-2.5 rounded-full transition-all duration-500" style="width: ${progress}%;"></div>
+                            </div>
+
+                            <!-- Button -->
+                            <button onclick="renderCourseDetails(${course.id})"
+                                class="mt-4 w-full py-2 px-4 rounded-lg font-semibold text-white transition duration-300
+                                ${isCompleted ? 'bg-secondary hover:bg-emerald-600' : 'bg-primary hover:bg-primary-dark'}
+                                shadow-md hover:shadow-lg focus:outline-none focus:ring-4 focus:ring-primary/50"
+                            >
+                                ${isCompleted ? 'Review Course' : 'Continue Learning'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            viewContainer.innerHTML = `
+                <h2 class="text-3xl font-bold text-gray-800 mb-6">Available Courses</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    ${coursesHtml}
+                </div>
+            `;
+        }
+
+        /**
+         * Renders the detail view for a specific course.
+         * @param {number} courseId - The ID of the course to render.
+         */
+        function renderCourseDetails(courseId) {
+            updateAllCourseProgress();
+            const course = coursesData.find(c => c.id === courseId);
+            if (!course) {
+                viewContainer.innerHTML = '<p class="text-center text-red-500">Course not found.</p>';
+                return;
+            }
+
+            const progress = calculateCourseProgress(courseId);
+            const isCompleted = userProgress[courseId]?.completed || false;
+            const progressColor = isCompleted ? 'bg-secondary' : 'bg-primary';
+
+            // Lesson List HTML
+            const lessonsHtml = course.lessons.map(lesson => {
+                const lessonIsCompleted = userProgress[course.id]?.lessons[lesson.id] || false;
+                const buttonClasses = lessonIsCompleted
+                    ? 'bg-secondary hover:bg-emerald-600 text-white'
+                    : 'bg-white border border-primary text-primary hover:bg-primary-dark hover:text-white';
+                const icon = lessonIsCompleted ? '✅' : '⏳';
+                const lessonBg = lessonIsCompleted ? 'bg-green-50/70' : 'bg-white';
+
+                return `
+                    <li class="p-4 rounded-lg shadow-sm flex items-center justify-between transition duration-300 ${lessonBg}">
+                        <div class="flex items-center">
+                            <span class="text-xl mr-3">${icon}</span>
+                            <span class="text-lg font-medium text-gray-800">${lesson.title}</span>
+                        </div>
+                        <button onclick="toggleLessonCompletion(${course.id}, ${lesson.id})"
+                            class="py-1 px-3 text-sm font-semibold rounded-full transition duration-300 focus:outline-none focus:ring-4 focus:ring-opacity-50
+                            ${buttonClasses} ${lessonIsCompleted ? 'focus:ring-secondary/50' : 'focus:ring-primary/50'}"
+                        >
+                            ${lessonIsCompleted ? 'Mark Incomplete' : 'Mark Completed'}
+                        </button>
+                    </li>
+                `;
+            }).join('');
+
+            // Overall Course Completion Button
+            const courseCompletionButtonClasses = isCompleted
+                ? 'bg-red-500 hover:bg-red-600 focus:ring-red-500/50'
+                : 'bg-primary hover:bg-primary-dark focus:ring-primary/50';
+
+            viewContainer.innerHTML = `
+                <nav class="mb-6 text-sm">
+                    <span class="text-gray-500 cursor-pointer hover:text-primary" onclick="renderCourseList()">Home</span>
+                    <span class="mx-2 text-gray-400">/</span>
+                    <span class="text-gray-800 font-semibold">${course.title}</span>
+                </nav>
+
+                <h2 class="text-4xl font-extrabold text-gray-900 mb-3">${course.icon} ${course.title}</h2>
+                <p class="text-gray-600 mb-8 max-w-2xl">${course.description}</p>
+
+                <!-- Course Progress Panel -->
+                <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Your Progress</h3>
+                    <div class="flex items-center justify-between text-lg font-semibold mb-3">
+                        <span class="text-gray-700">Completion Status:</span>
+                        <span class="${isCompleted ? 'text-secondary' : 'text-primary'}">${progress}%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3.5">
+                        <div class="${progressColor} h-3.5 rounded-full transition-all duration-500" style="width: ${progress}%;"></div>
+                    </div>
+
+                    <button onclick="markCourseCompleted(${course.id})"
+                        class="mt-6 w-full py-3 px-4 rounded-lg font-bold text-white transition duration-300 shadow-md hover:shadow-xl
+                        ${courseCompletionButtonClasses}"
+                    >
+                        ${isCompleted ? 'Course Completed! (Click to Unmark)' : 'Mark Course as Fully Completed'}
+                    </button>
+                </div>
+
+                <!-- Lessons List -->
+                <h3 class="text-2xl font-bold text-gray-800 mb-4">Lessons (${course.lessons.length})</h3>
+                <ul class="space-y-4">
+                    ${lessonsHtml}
+                </ul>
+            `;
+        }
+
+        // --- Interaction Handlers ---
+
+        /**
+         * Toggles the completion status of a single lesson.
+         * @param {number} courseId - The ID of the course.
+         * @param {number} lessonId - The ID of the lesson.
+         */
+        function toggleLessonCompletion(courseId, lessonId) {
+            const progress = userProgress[courseId];
+            if (!progress) return;
+
+            // Toggle the lesson status
+            progress.lessons[lessonId] = !progress.lessons[lessonId];
+            saveProgress();
+            renderCourseDetails(courseId); // Re-render to show updated status
+        }
+
+        /**
+         * Toggles the overall completion status of a course.
+         * @param {number} courseId - The ID of the course.
+         */
+        function markCourseCompleted(courseId) {
+            const progress = userProgress[courseId];
+            if (!progress) return;
+
+            // Toggle overall course completion
+            const newState = !progress.completed;
+            progress.completed = newState;
+
+            // If marking complete, mark all lessons complete for consistency
+            if (newState) {
+                const course = coursesData.find(c => c.id === courseId);
+                course.lessons.forEach(lesson => {
+                    progress.lessons[lesson.id] = true;
+                });
+            } else {
+                 // If unmarking complete, we don't automatically unmark all lessons,
+                 // but the progress bar calculation will reflect actual lesson completion.
+            }
+
+            saveProgress();
+            renderCourseDetails(courseId); // Re-render to show updated status
+        }
+
+        // --- Initialization ---
+
+        window.onload = () => {
+            loadProgress();
+            renderCourseList();
+        };
+
+        // Expose functions globally for HTML click handlers
+        window.renderCourseList = renderCourseList;
+        window.renderCourseDetails = renderCourseDetails;
+        window.toggleLessonCompletion = toggleLessonCompletion;
+        window.markCourseCompleted = markCourseCompleted;
+    </script>
+
+</body>
+</html>
+
+
+
+
